@@ -17,6 +17,10 @@ import org.jsoup.Jsoup;
 import org.jsoup.helper.HttpArchive.ErrMsg;
 
 public class JsoupClient {
+	private static final int DEFAULT_MAX_RETRY_TIMES = 10;
+	private static final boolean DEFAULT_USE_PROXY = false;
+	private static final boolean DEFAULT_DISABLE_COOKIE = false;
+	private static JsoupClient me = new JsoupClient();
 	private Set<Cookie> cookies = new HashSet<>();
 	private String proxy;
 	private boolean followRedirect;
@@ -26,6 +30,10 @@ public class JsoupClient {
 
 	public JsoupClient() {
 		this.followRedirect = true;
+	}
+
+	public static Response executeSingleConn(Connection conn) throws IOException {
+		return me.executeWithResp(conn, DEFAULT_MAX_RETRY_TIMES, DEFAULT_USE_PROXY, DEFAULT_DISABLE_COOKIE);
 	}
 
 	public Connection getGetConn(String url) {
@@ -42,7 +50,20 @@ public class JsoupClient {
 		return getGetConn(url).method(Method.POST);
 	}
 
+	public Response executeWithResp(Connection conn) throws IOException {
+		return executeWithResp(conn, DEFAULT_MAX_RETRY_TIMES);
+	}
+
+	public Response executeWithResp(Connection conn, int maxRetryTimes) throws IOException {
+		return executeWithResp(conn, maxRetryTimes, DEFAULT_USE_PROXY);
+	}
+
 	public Response executeWithResp(Connection conn, int maxRetryTimes, boolean useProxy) throws IOException {
+		return executeWithResp(conn, maxRetryTimes, useProxy, DEFAULT_DISABLE_COOKIE);
+	}
+
+	public Response executeWithResp(Connection conn, int maxRetryTimes, boolean useProxy, boolean disableCookie)
+			throws IOException {
 		IOException ioException = new IOException();
 		HttpArchive har = new HttpArchive(conn.request(), null);
 		for (int i = 1; i <= maxRetryTimes; i++) {
@@ -54,11 +75,13 @@ public class JsoupClient {
 				HttpConnection.Response resp = (HttpConnection.Response) (conn.execute());
 				har.resp = resp;
 				logHttpArchive(har);
-				Set<Cookie> cookieSet = resp.getCookieSet();
-				for (Cookie cookie : cookies) {
-					cookieSet.add(cookie);
+				if (!disableCookie) {
+					Set<Cookie> cookieSet = resp.getCookieSet();
+					for (Cookie cookie : cookies) {
+						cookieSet.add(cookie);
+					}
+					this.cookies = cookieSet;
 				}
-				this.cookies = cookieSet;
 				if (resp.hasHeader("Location") && followRedirect) {
 					redirectNum++;
 					if (redirectNum > 20) {
@@ -73,7 +96,7 @@ public class JsoupClient {
 						redirectConn.referrer(referrer);
 					}
 
-					Response redirectedResp = executeWithResp(redirectConn, 1, useProxy);
+					Response redirectedResp = executeWithResp(redirectConn, 1, useProxy, disableCookie);
 					redirectNum = 0;
 					return redirectedResp;
 				}
@@ -81,7 +104,9 @@ public class JsoupClient {
 			} catch (HttpStatusException hse) {
 				har.errMsg = new ErrMsg(hse.getStatusCode(), hse.getMessage());
 				logHttpArchive(har);
-				throw hse;
+				System.out.println(
+						"HttpStatusException:" + hse.getMessage() + ", 次数 " + i + "，" + delaySeconds + " 秒后继续尝试");
+				ioException = hse;
 			} catch (UnknownHostException uhe) {
 				har.errMsg = ErrMsg.err("UnknownHostException:" + uhe.getMessage());
 				System.out.println(
@@ -120,10 +145,6 @@ public class JsoupClient {
 			e.printStackTrace();
 		}
 		// System.out.println(har);
-	}
-
-	public Response executeWithResp(Connection conn, int maxRetryTimes) throws IOException {
-		return executeWithResp(conn, maxRetryTimes, false);
 	}
 
 	public Set<Cookie> getCookies() {
