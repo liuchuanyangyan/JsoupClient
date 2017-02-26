@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -521,7 +522,7 @@ public class HttpConnection implements Connection {
 		private boolean executed = false;
 		private int numRedirects = 0;
 		private Connection.Request req;
-		private Set<Cookie> cookieSet = new HashSet<>();
+		private Set<Cookie> cookieSet = Collections.synchronizedSet(new HashSet<>());
 		/*
 		 * Matches XML content types (like text/xml,
 		 * application/xhtml+xml;charset=UTF8, etc)
@@ -1001,11 +1002,11 @@ public class HttpConnection implements Connection {
 		}
 
 		public Set<Cookie> getCookieSet() {
-			return cookieSet;
+			return copyOfCookieSet();
 		}
 
-		public void setCookieSet(Set<Cookie> cookieSet) {
-			this.cookieSet = cookieSet;
+		private Set<Cookie> copyOfCookieSet() {
+			return Collections.unmodifiableSet(new HashSet<>(this.cookieSet));
 		}
 
 	}
