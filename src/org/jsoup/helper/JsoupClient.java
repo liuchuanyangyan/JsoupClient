@@ -15,7 +15,7 @@ import org.jsoup.Jsoup;
 public class JsoupClient {
 	private final Set<Cookie> cookies = new HashSet<>();
 	private final boolean followRedirect;
-	private String proxy;
+	private Proxy proxy;
 
 	public JsoupClient() {
 		this.followRedirect = true;
@@ -62,7 +62,7 @@ public class JsoupClient {
 			try {
 				synchronized (this) {
 					if (proxy != null) {
-						conn.proxy(Proxy.Type.HTTP, proxy.split(":")[0], Integer.parseInt(proxy.split(":")[1]));
+						conn.proxy(proxy);
 					}
 				}
 				HttpConnection.Response resp = (HttpConnection.Response) (conn.execute());
@@ -114,7 +114,7 @@ public class JsoupClient {
 		throw ioException;
 	}
 
-	public synchronized void setProxy(String proxy) {
+	public synchronized void setProxy(Proxy proxy) {
 		this.proxy = proxy;
 	}
 
